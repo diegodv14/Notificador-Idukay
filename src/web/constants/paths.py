@@ -7,5 +7,4 @@ ERROR_LOGIN = '//*[@id="login-custom-style"]/div/div/div[2]/div[2]/div/form/div[
 
 # DASHBOARD 
 
-PARCIAL_NOTES = '//*[@id="sidebar"]/div[1]/ul/li[12]/a'
-NOTES_TABLE = '//*[@id="step1"]/table'
+PARCIAL_NOTES = '//*[@id="sidebar"]/div[1]/ul/li[13]/a'

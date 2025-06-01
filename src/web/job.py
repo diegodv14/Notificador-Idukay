@@ -4,9 +4,12 @@ from typing import Any, Dict, List
 from playwright.sync_api import sync_playwright
 from playwright.sync_api import Page
 from src.web.core.log.logger import logger
-from src.web.constants.paths import ERROR_LOGIN, INPUT_TEXT_PASSWORD, INPUT_TEXT_USER, LOGIN_BUTTON, NOTES_TABLE, PARCIAL_NOTES
+import polars as pl
+from src.web.constants.paths import ERROR_LOGIN, INPUT_TEXT_PASSWORD, INPUT_TEXT_USER, LOGIN_BUTTON, PARCIAL_NOTES
 from src.web.domain.interfaces.notification_repository import INotificationRepository
 from src.web.domain.types.index import NoteEntry
+from web.infraestructure.services.dataframe_service import DataFrameService
+from web.infraestructure.services.evaluation_service import EvaluationService
 
 class Job:
     _notification_repository: INotificationRepository = None
@@ -67,11 +70,28 @@ class Job:
                     sidebar_notes.click()
                     
                     time.sleep(6)
-                                        
+                    
+                    has_topic = self.get_topics(page, index)
+                    if not has_topic:
+                        logger.error(f"No se encontraron materias para el estudiante: {student}")
+                        continue
+                    
+                    time.sleep(2)
+                            
                     self.get_notes(page, index)
+                    
+
+                df = DataFrameService.create_dataframe(self.notes)  
+                df = df.filter(pl.col("Nota") != "-")
+                df.write_csv("notas_estudiantes.csv")
                 
-                
-                print(f"Notas obtenidas: {self.notes}")
+                filter_df = EvaluationService.get_bad_notes(df)
+                        
+                if not filter_df.is_empty():
+                    logger.info("Se encontraron notas bajas. Enviando notificación...")
+                    self._notification_repository.send_notification(
+                        data=filter_df
+                    )
 
                 page.close()
                 browser.close()
@@ -196,31 +216,56 @@ class Job:
             return 
         
     
+    def get_topics(self, page: Page, index: int) -> bool:
+        try:
+            logger.info("Obteniendo materias...")
+            topics = page.locator(".pricing-span-header .widget-box .widget-body .widget-main ul li.ng-scope")
+            if topics.count() == 0:
+                logger.error("No se encontraron las materias.")
+                return False
+
+            count = topics.count()
+            logger.info(f"Cantidad de materias encontrados: {count}")
+
+            for i in range(count):
+                topic = topics.nth(i).inner_text().strip()
+                self.notes[index]["notes"].append({"topic": topic, "note": []})
+                
+            return True
+
+        except Exception as e:
+            logger.error(f"Ocurrió un error al obtener los temas: {e}")
+            return False
+    
+    
     
     def get_notes(self, page: Page, index: int) -> bool:
         
-        
         try: 
             logger.info("Obteniendo notas parciales...")
-
-            notes_table = page.locator(NOTES_TABLE)
+            notes_table = page.locator(".pricing-span-body")
             if not notes_table.is_visible():
                 logger.error("No se encontró la tabla de notas.")
                 return False
 
-            rows = notes_table.locator("tbody tr")
-            logger.info(f"Cantidad de filas encontradas: {rows.count()}")
-            count = rows.count()
+            cols = notes_table.locator(".pricing-span.courses-table")
+            logger.info(f"Cantidad de columnas encontradas: {cols.count()}")
+            count = cols.count()
             
-
             for i in range(count):
-                row = rows.nth(i)
-                cells = row.locator("td")
-                self.notes[index]["notes"].append({
-                    "topic": cells.nth(1).inner_text().strip(),
-                    "note": cells.nth(3).inner_text().strip()
-                })
-
+                col = cols.nth(i)
+                
+                title = col.locator(".widget-box .widget-header .courses-table-title div").inner_text().strip()
+                
+                rows = col.locator(".widget-box .widget-body .widget-main ul li.ng-scope")
+                rows_count = rows.count()
+                logger.info(f"Cantidad de filas encontradas en la columna {title}: {rows_count}")
+                
+                for j in range(rows_count):
+                    row = rows.nth(j)
+                    note = row.locator("span").inner_text().strip()           
+                    self.notes[index]["notes"][j]["note"].append({"type": title, "note": note})
+            
             return True
         
         
