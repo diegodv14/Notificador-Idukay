@@ -4,4 +4,7 @@ class EvaluationService():
              
     @staticmethod
     def get_bad_notes(df: pl.DataFrame) -> pl.DataFrame:
-        return df.filter(int(pl.col("Nota")) < 10)
+        df = df.with_columns([
+            pl.col("Nota").cast(pl.Float64)
+        ])
+        return df.filter(pl.col("Nota") < 11)
