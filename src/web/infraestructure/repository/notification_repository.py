@@ -15,20 +15,24 @@ class NotificationRepository(INotificationRepository):
     def send_notification(self, data: pl.DataFrame) -> bool:
         try:
             message: List[str] = []
+            if not data.is_empty():
+                for row in data.iter_rows(named=True):
+                    message.append(f"{row['Estudiante']} tiene una nota baja en {row['Materia']}: {row['Nota']}") 
+            
+                cellphone = os.getenv("NOTIFICATION_CELLPHONE")
+                api_key = os.getenv("SMS_API_KEY")
 
-            for row in data.iter_rows(named=True):
-                message.append(f"{row['Estudiante']} tiene una nota baja en {row['Materia']}: {row['Nota']}") 
-        
-            cellphone = os.getenv("NOTIFICATION_CELLPHONE")
-            api_key = os.getenv("SMS_API_KEY")
-
-            if not cellphone or not api_key:
-                print("Celular o API Key no configurados.")
-                return False
+                if not cellphone or not api_key:
+                    print("Celular o API Key no configurados.")
+                    return False
+                message = "\n".join(message[:2])
+                
+            else:
+                message = "Las niñas no tienen malas notas."
 
             payload = {
                 'phone': cellphone,
-                'message': "\n".join(message[:2]),
+                'message': message,
                 'key': api_key,
             }
 

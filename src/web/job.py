@@ -87,11 +87,10 @@ class Job:
                 
                 filter_df = EvaluationService.get_bad_notes(df)
                         
-                if not filter_df.is_empty():
-                    logger.info("Se encontraron notas bajas. Enviando notificación...")
-                    self._notification_repository.send_notification(
-                        data=filter_df
-                    )
+                logger.info("Se encontraron notas bajas. Enviando notificación...")
+                self._notification_repository.send_notification(
+                    data=filter_df
+                )
 
                 page.close()
                 browser.close()
